@@ -71,17 +71,39 @@ if __name__ == "__main__":
                     )
                 )
 
+    table_border = {
+        "top": {
+            "sz": 4,
+            "color": "auto",
+            "val": "dashed",
+        },
+        "bottom": {"sz": 4, "color": "auto", "val": "dashed"},
+        "start": {"sz": 4, "color": "auto", "val": "nil"},
+        "end": {"sz": 4, "color": "auto", "val": "nil"},
+    }
+
     target_table = doc.tables[1]
-    # 2行（ヘッダー含む）→7行
-    for i in range(2, 7):
+    # 2行（ヘッダー含む）→17行
+    for i in range(2, 17):
         row = target_table.add_row()
+
+        cell = row.cells[0]
+        cell.text = i
+
+        cell = row.cells[1]
+        cell.text = "てすとてすと"
+
+        cell = row.cells[2]
+        cell.text = "テストテスト"
+
+        cell = row.cells[3]
+
         for cell in row.cells:
-            # print(dir(docx.text.run.WD_BREAK))
-            cell.text = "{}行目\n改行テスト".format(i)
-            # cell.run.add_break(docx.text.run.WD_BREAK.LINE)
-            set_cell_border(
-                cell, bottom={"sz": 12, "color": "#FF0000", "val": "dashed"}
-            )
+            set_cell_border(cell, **table_border)
+
+        # print(dir(docx.text.run.WD_BREAK))
+        # cell.text = "{}行目\n改行テスト".format(i)
+        # cell.run.add_break(docx.text.run.WD_BREAK.LINE)
 
     # テーブル操作
     for i, table in enumerate(doc.tables):
