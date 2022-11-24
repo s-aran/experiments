@@ -71,6 +71,7 @@ if __name__ == "__main__":
                     )
                 )
 
+    # 参照: http://officeopenxml.com/WPtableBorders.php
     table_border = {
         "top": {
             "sz": 4,
