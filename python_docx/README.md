@@ -28,5 +28,5 @@ Probably because the wheel file is provided.
 
 ## memo
 
-- The dashed line of the table border style follow the spacing of the dashed lines in terms of tickness.
-- The default tickness in Word is `sz: 4`
+- The dashed line of the table border style follow the spacing of the dashed lines in terms of thickness.
+- The default thickness in Word is `sz: 4`
