@@ -1,22 +1,27 @@
 import React from "react";
 import axios from "axios";
 
+import { useNavigate } from "react-router-dom";
+import { TokensContext } from "./LoginPage";
+
 axios.defaults.baseURL = "api/";
 
 const LoginForm = (): JSX.Element => {
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
 
-  const [accessToken, setAccessToken] = React.useState("");
-  const [refreshToken, setRefreshToken] = React.useState("");
+  const navigate = useNavigate();
+
+  const tokensContext = React.useContext(TokensContext);
 
   const handleSubmit = () => {
     console.info(username, password);
 
     const url = "/token/";
     axios.post(url, { username, password }).then((res) => {
-      setAccessToken(res.data.access);
-      setRefreshToken(res.data.refresh);
+      tokensContext.setAccessToken(res.data.access);
+      tokensContext.setRefreshToken(res.data.refresh);
+      navigate("/login_succeeded");
     });
   };
 
@@ -52,8 +57,8 @@ const LoginForm = (): JSX.Element => {
         <button onClick={handleSubmit}>login</button>
       </div>
       <div>
-        <p>access: {accessToken}</p>
-        <p>refresh: {refreshToken}</p>
+        <p>access: {tokensContext.accessToken}</p>
+        <p>refresh: {tokensContext.refreshToken}</p>
       </div>
     </div>
   );
