@@ -22,9 +22,13 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from loginjwt.views import SayHello, SecretSayHello
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    path("api/hello/say/", SayHello.as_view()),
+    path("api/hello/secret_say", SecretSayHello.as_view()),
 ]
