@@ -2,13 +2,21 @@ import React from "react";
 import logo from "./logo.svg";
 import "./App.css";
 import LoginForm from "./LoginForm";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
 import LoginSucceededPage from "./LoginSucceededPage";
 import LoginPage, { TokensContext } from "./LoginPage";
 
 function App() {
   const [accessToken, setAccessToken] = React.useState("");
   const [refreshToken, setRefreshToken] = React.useState("");
+
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    // redirect to login page
+    navigate("/login");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <TokensContext.Provider
