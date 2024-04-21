@@ -37,6 +37,17 @@ class TestClass(unittest.TestCase):
 
     println!("");
 
+    let rf = result.get(0).unwrap();
+    let import_stmt = rf.as_import_stmt().unwrap();
+    let name_first = import_stmt.names.get(0).unwrap();
+    println!("{} as {:?}", name_first.name, name_first.asname);
+
+    let rl = result.get(result.len() - 1).unwrap();
+    let class_deco = rl.as_class_def_stmt().unwrap();
+    for d in class_deco.decorator_list.iter() {
+        println!("{:?}", d);
+    }
+
     // let ra = result.get(0).unwrap();
     // println!("{:?}", ra.names.grt(0).unwrap());
 
