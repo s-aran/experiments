@@ -1,6 +1,7 @@
-#[macro_use]
-extern crate env_logger;
-use rustpython_parser::{ast, Parse};
+use rustpython_parser::{
+    ast::{self, StmtClassDef, StmtFunctionDef, StmtImport},
+    Parse,
+};
 
 fn main() {
     let py = r#"
@@ -34,23 +35,40 @@ class TestClass(unittest.TestCase):
         println!("{:?}", e);
     }
 
-
     println!("");
 
-    let rf = result.get(0).unwrap();
-    let import_stmt = rf.as_import_stmt().unwrap();
-    let name_first = import_stmt.names.get(0).unwrap();
-    println!("{} as {:?}", name_first.name, name_first.asname);
+    // let rf = result.get(0).unwrap();
+    // let import_stmt = rf.as_import_stmt().unwrap();
+    // let name_first = import_stmt.names.get(0).unwrap();
+    // println!("{} as {:?}", name_first.name, name_first.asname);
 
-    let rl = result.get(result.len() - 1).unwrap();
-    let class_deco = rl.as_class_def_stmt().unwrap();
-    for d in class_deco.decorator_list.iter() {
-        println!("{:?}", d);
+    // let rl = result.get(result.len() - 1).unwrap();
+    // let class_deco = rl.as_class_def_stmt().unwrap();
+    // for d in class_deco.decorator_list.iter() {
+    //     println!("{:?}", d);
+    // }
+
+    let mut states = States::default();
+    let tests: Vec<String> = vec![];
+    for rs in result.iter() {
+        match rs {
+            ast::Stmt::Import(stmt) => import_stmt(&mut states, stmt),
+            ast::Stmt::ClassDef(stmt) => class_def_stmt(&mut states, stmt),
+            ast::Stmt::FunctionDef(stmt) => func_def_stmt(&mut states, stmt),
+
+            _ => {}
+        }
     }
-
-    // let ra = result.get(0).unwrap();
-    // println!("{:?}", ra.names.grt(0).unwrap());
-
-    // println!("{:?}", result);
-    // println!("{}", result);
 }
+
+#[derive(Debug, Default)]
+struct States {
+    has_unittest: bool,
+    imported_skip: bool,
+}
+
+fn import_stmt(states: &mut States, stmt: &StmtImport) {}
+
+fn class_def_stmt(states: &mut States, stmt: &StmtClassDef) {}
+
+fn func_def_stmt(states: &mut States, stmt: &StmtFunctionDef) {}
