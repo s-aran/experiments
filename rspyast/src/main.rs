@@ -1,29 +1,39 @@
+use std::{fs::File, io::Read, path::Path};
+
 use rustpython_parser::{
     ast::{self, StmtClassDef, StmtFunctionDef, StmtImport},
     Parse,
 };
 
 fn main() {
-    let py = r#"
-import unittest;
+    let test_py_base_path = Path::new("test_files");
+    let test_py_path = test_py_base_path.join("test_simple.py");
 
-@class_decorator
-class TestClass(unittest.TestCase):
-    """hogeをpiyoしたfugaをmogeるテスト"""
+    let mut test_file = match File::open(test_py_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("{}", e);
+            return;
+        }
+    };
 
-    @unittest.skip
-    def test_case1(self):
-        """test for do qux to baz that bar did by foo"""
+    let mut buf = String::new();
+    match test_file.read_to_string(&mut buf) {
+        Ok(s) => {
+            println!("{} bytes read.", s);
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+            return;
+        }
+    };
 
-        a = 1
-        b = 2
-        c = a + b
-        self.assertEqual(3, c)
-"#;
-
-    env_logger::init();
-
-    let result = match ast::Suite::parse(py, "test_case.py").map_err(|e| e.to_string()) {
+    let result = match ast::Suite::parse(
+        buf.as_str(),
+        test_py_base_path.file_name().unwrap().to_str().unwrap(),
+    )
+    .map_err(|e| e.to_string())
+    {
         Ok(v) => v,
         Err(e) => {
             eprintln!("{:?}", e);
@@ -50,14 +60,43 @@ class TestClass(unittest.TestCase):
 
     let mut states = States::default();
     let tests: Vec<String> = vec![];
+
+    let mut test_classes = Vec::<&StmtClassDef>::new();
+    let mut test_methods = Vec::<&StmtFunctionDef>::new();
     for rs in result.iter() {
         match rs {
             ast::Stmt::Import(stmt) => import_stmt(&mut states, stmt),
-            ast::Stmt::ClassDef(stmt) => class_def_stmt(&mut states, stmt),
-            ast::Stmt::FunctionDef(stmt) => func_def_stmt(&mut states, stmt),
+            ast::Stmt::ClassDef(stmt) => {
+                test_classes.push(stmt);
+                class_def_stmt(&mut states, &stmt);
+            }
+            ast::Stmt::FunctionDef(stmt) => {
+                test_methods.push(stmt);
+                func_def_stmt(&mut states, &stmt);
+            }
 
             _ => {}
         }
+    }
+
+    println!("classes: {}", test_classes.len());
+    for stmt in test_classes.iter() {
+        println!("{:?}", stmt.name);
+
+        println!("* {} in methods: {}", stmt.name, stmt.body.len());
+        for b in stmt.body.iter() {
+            if !b.is_function_def_stmt() {
+                continue;
+            }
+
+            let func = b.as_function_def_stmt().unwrap();
+            println!("* {}", func.name);
+        }
+    }
+
+    println!("methods: {}", test_methods.len());
+    for stmt in test_methods.iter() {
+        println!("{:?}", stmt.name);
     }
 }
 
