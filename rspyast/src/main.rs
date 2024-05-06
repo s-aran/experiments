@@ -61,17 +61,18 @@ fn main() {
     let mut states = States::default();
     let tests: Vec<String> = vec![];
 
-    let mut test_classes = Vec::<&StmtClassDef>::new();
-    let mut test_methods = Vec::<&StmtFunctionDef>::new();
     for rs in result.iter() {
         match rs {
-            ast::Stmt::Import(stmt) => import_stmt(&mut states, stmt),
+            ast::Stmt::Import(stmt) => {
+                // imports.push(stmt);
+                import_stmt(&mut states, stmt);
+            }
             ast::Stmt::ClassDef(stmt) => {
-                test_classes.push(stmt);
+                // test_classes.push(stmt);
                 class_def_stmt(&mut states, &stmt);
             }
             ast::Stmt::FunctionDef(stmt) => {
-                test_methods.push(stmt);
+                // test_methods.push(stmt);
                 func_def_stmt(&mut states, &stmt);
             }
 
@@ -79,8 +80,21 @@ fn main() {
         }
     }
 
-    println!("classes: {}", test_classes.len());
-    for stmt in test_classes.iter() {
+    println!("imports: {}", states.imports.len());
+    for stmt in states.imports.iter() {
+        println!("{:?}", stmt);
+        for name in stmt.names.iter() {
+            let asname = name.asname.as_ref();
+            if asname.is_some() {
+                println!("* import ==> {:?}", asname.unwrap().as_str());
+            }
+        }
+    }
+
+    println!("--------------------------------------------------------------------------------");
+
+    println!("classes: {}", states.classes.len());
+    for stmt in states.classes.iter() {
         println!("{:?}", stmt.name);
 
         println!("* {} in methods: {}", stmt.name, stmt.body.len());
@@ -91,23 +105,45 @@ fn main() {
 
             let func = b.as_function_def_stmt().unwrap();
             println!("* {}", func.name);
+
+            for deco in func.decorator_list.iter() {
+                if !deco.is_attribute_expr() {
+                    continue;
+                }
+
+                let d = deco.as_attribute_expr().unwrap();
+
+                if !d.value.is_name_expr() {
+                    continue;
+                }
+
+                let deco_name = d.value.as_name_expr().unwrap();
+                println!("** {:?}", deco_name.id.as_str());
+            }
         }
     }
 
-    println!("methods: {}", test_methods.len());
-    for stmt in test_methods.iter() {
+    println!("methods: {}", states.methods.len());
+    for stmt in states.methods.iter() {
         println!("{:?}", stmt.name);
     }
 }
 
 #[derive(Debug, Default)]
 struct States {
-    has_unittest: bool,
-    imported_skip: bool,
+    imports: Vec<StmtImport>,
+    classes: Vec<StmtClassDef>,
+    methods: Vec<StmtFunctionDef>,
 }
 
-fn import_stmt(states: &mut States, stmt: &StmtImport) {}
+fn import_stmt<'a>(states: &mut States, stmt: &'a StmtImport) {
+    states.imports.push(stmt.clone());
+}
 
-fn class_def_stmt(states: &mut States, stmt: &StmtClassDef) {}
+fn class_def_stmt<'a>(states: &mut States, stmt: &StmtClassDef) {
+    states.classes.push(stmt.clone());
+}
 
-fn func_def_stmt(states: &mut States, stmt: &StmtFunctionDef) {}
+fn func_def_stmt(states: &mut States, stmt: &StmtFunctionDef) {
+    states.methods.push(stmt.clone());
+}
