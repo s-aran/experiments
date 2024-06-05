@@ -227,13 +227,21 @@ fn func_def_stmt(states: &mut States, stmt: &StmtFunctionDef) {
 
 fn make_path_def_name(stmt: &StmtClassDef, current: &mut String, names: &mut Vec<String>) {
     let my_name = stmt.name.to_string();
-    current.push_str(&my_name);
+    let c = current.clone();
+    current.clear();
+    current.push_str(&if c.len() > 0 {
+        format!("{}.{}", c, &my_name)
+    } else {
+        my_name
+    });
 
     for body_stmt in stmt.body.iter() {
         if body_stmt.is_class_def_stmt() {
             let class_stmt = body_stmt.as_class_def_stmt().unwrap();
-
+            let tmp = current.clone();
             make_path_def_name(class_stmt, current, names);
+            current.clear();
+            current.push_str(&tmp);
             continue;
         }
 
