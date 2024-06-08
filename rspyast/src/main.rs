@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fs::File, io::Read, path::Path};
 
+use rustpython::vm::import;
 use rustpython_parser::{
-    ast::{self, located::Stmt, Identifier, StmtClassDef, StmtFunctionDef, StmtImport},
+    ast::{
+        self, located::Stmt, Identifier, StmtClassDef, StmtFunctionDef, StmtImport, StmtImportFrom,
+    },
     Parse,
 };
 
@@ -67,6 +70,9 @@ fn main() {
                 // imports.push(stmt);
                 import_stmt(&mut states, stmt);
             }
+            ast::Stmt::ImportFrom(stmt) => {
+                import_from_stmt(&mut states, stmt);
+            }
             ast::Stmt::ClassDef(stmt) => {
                 // test_classes.push(stmt);
                 class_def_stmt(&mut states, &stmt);
@@ -92,6 +98,9 @@ fn main() {
 
     println!("--------------------------------------------------------------------------------");
 
+    let mods = module_runner(&states.imports, &states.import_froms);
+    println!("{:?}", mods);
+
     for c in states.classes.iter() {
         // println!("* {} in methods: {}", c.name, c.body.len());
         for b in c.body.iter() {
@@ -110,7 +119,7 @@ fn main() {
         let mut current = String::new();
         let mut names = vec![];
         make_path_def_name(c, &mut current, &mut names);
-        println!("names: {:?}", names);
+        // println!("names: {:?}", names);
     }
 
     //     for rs in result.iter() {
@@ -191,16 +200,28 @@ fn main() {
     //     }
 }
 
-fn module_runner(imports: &Vec<StmtImport>) -> HashMap<String, Identifier> {
-    let mut result = HashMap::<String, Identifier>::new();
+fn module_runner(
+    imports: &Vec<StmtImport>,
+    import_froms: &Vec<StmtImportFrom>,
+) -> HashMap<String, Vec<String>> {
+    // original module name: [exported, ...]
+    let mut result = HashMap::new();
 
     for stmt in imports.iter() {
-        for name in stmt.names.iter() {
-            let asname = name.asname.as_ref();
-            if asname.is_some() {
-                println!("* import ==> {:?}", asname.unwrap().as_str());
-            }
+        let module = stmt.names.get(0).unwrap();
+        result.insert(module.name.to_string(), Vec::<String>::new());
+    }
+
+    for stmt in import_froms.iter() {
+        let module = stmt.module.as_ref().unwrap().to_string();
+        let mut tmp: Vec<String> = vec![];
+        if result.contains_key(&module) {
+            // merge exports
+            let exports = result.get(&module).unwrap().to_owned();
+            tmp.extend(exports);
         }
+        tmp.extend(stmt.names.iter().map(|e| e.name.to_string()).collect());
+        result.insert(module, tmp);
     }
 
     result
@@ -209,12 +230,17 @@ fn module_runner(imports: &Vec<StmtImport>) -> HashMap<String, Identifier> {
 #[derive(Debug, Default)]
 struct States {
     imports: Vec<StmtImport>,
+    import_froms: Vec<StmtImportFrom>,
     classes: Vec<StmtClassDef>,
     methods: Vec<StmtFunctionDef>,
 }
 
 fn import_stmt(states: &mut States, stmt: &StmtImport) {
     states.imports.push(stmt.clone());
+}
+
+fn import_from_stmt(states: &mut States, stmt: &StmtImportFrom) {
+    states.import_froms.push(stmt.clone());
 }
 
 fn class_def_stmt(states: &mut States, stmt: &StmtClassDef) {
