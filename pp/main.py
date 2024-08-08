@@ -29,7 +29,6 @@ class Node:
 
 
 def parse(expr: str):
-    # split
     TOKEN_LIST = [" ", "(", ")"]
     OP_LIST = ["AND", "OR"]
     PA_LIST = ["(", ")"]
@@ -38,7 +37,7 @@ def parse(expr: str):
     token = ""
     quote = False
 
-    for i, c in enumerate(f"({expr})"):
+    for c in f"({expr})":
         if not quote and (c in TOKEN_LIST):
             if len(token) > 0:
                 tokens.append(token)
@@ -60,20 +59,30 @@ def parse(expr: str):
     tl: list[Token] = []
     for t in tokens:
         word = t.strip()
-        print(word)
         if t in PA_LIST:
+            if t == ")":
+                last = tl[-1]
+
+                if last.kind == Kind.Operator:
+                    if last.word == "AND":
+                        tl.append(Token("AND", Kind.Identifier))
+
+                    if last.word == "OR":
+                        tl.pop()
+
             tl.append(Token(word, Kind.Parenthesis))
             continue
 
+        last = tl[-1]
         if t in OP_LIST:
-            tl.append(Token(word, Kind.Operator))
+            kind = Kind.Identifier if last.kind != Kind.Identifier else Kind.Operator
+            tl.append(Token(word, kind))
             continue
 
-        last = tl[-1]
         if last.kind == Kind.Identifier or last.word == ")":
             tl.append(Token("AND", Kind.Operator))
 
-        tl.append(Token(t, Kind.Identifier))
+        tl.append(Token(word, Kind.Identifier))
 
     return tl
 

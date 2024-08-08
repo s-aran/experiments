@@ -52,6 +52,80 @@ class TreeTest(unittest.TestCase):
         self.maxDiff = None
         self.assertEqual(expected, actual)
 
+    def test_parse_and_and_or(self):
+        actual = parse(
+            'AND AND OR'
+        )
+
+        expected = [
+            Token("(", Kind.Parenthesis),
+            Token("AND", Kind.Identifier),
+            Token("AND", Kind.Operator),
+            Token("OR", Kind.Identifier),
+            Token(")", Kind.Parenthesis),
+        ]
+
+        self.maxDiff = None
+        self.assertEqual(expected, actual)
+
+    def test_parse_a_or_b_or(self):
+        actual = parse(
+            'A OR (B OR)'
+        )
+
+        expected = [
+            Token("(", Kind.Parenthesis),
+            Token("A", Kind.Identifier),
+            Token("OR", Kind.Operator),
+            Token("(", Kind.Parenthesis),
+            Token("B", Kind.Identifier),
+            Token(")", Kind.Parenthesis),
+            Token(")", Kind.Parenthesis),
+        ]
+
+        self.maxDiff = None
+        self.assertEqual(expected, actual)
+
+    def test_parse_a_or_b_and(self):
+        actual = parse(
+            'A OR (B AND)'
+        )
+
+        expected = [
+            Token("(", Kind.Parenthesis),
+            Token("A", Kind.Identifier),
+            Token("OR", Kind.Operator),
+            Token("(", Kind.Parenthesis),
+            Token("B", Kind.Identifier),
+            Token("AND", Kind.Operator),
+            Token("AND", Kind.Identifier),
+            Token(")", Kind.Parenthesis),
+            Token(")", Kind.Parenthesis),
+        ]
+
+        self.maxDiff = None
+        self.assertEqual(expected, actual)
+
+    def test_parse_a_or_b_or_c(self):
+        actual = parse(
+            'A OR (B OR C)'
+        )
+
+        expected = [
+            Token("(", Kind.Parenthesis),
+            Token("A", Kind.Identifier),
+            Token("OR", Kind.Operator),
+            Token("(", Kind.Parenthesis),
+            Token("B", Kind.Identifier),
+            Token("OR", Kind.Operator),
+            Token("C", Kind.Identifier),
+            Token(")", Kind.Parenthesis),
+            Token(")", Kind.Parenthesis),
+        ]
+
+        self.maxDiff = None
+        self.assertEqual(expected, actual)
+
     def test_to_rpl(self):
         tokens = [
             Token("(", Kind.Parenthesis),
