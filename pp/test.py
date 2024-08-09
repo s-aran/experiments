@@ -192,3 +192,23 @@ class TreeTest(unittest.TestCase):
         actual = get_tree(tokens)
 
         print_pritter(actual)
+
+        self.assertEqual("OR", actual.value)
+        self.assertEqual(Kind.Operator, actual.kind)
+
+        self.assertEqual("AND", actual.lhs.value)
+        self.assertEqual(Kind.Operator, actual.lhs.kind)
+
+        self.assertEqual("E", actual.rhs.value)
+        self.assertEqual(Kind.Identifier, actual.rhs.kind)
+        self.assertIsNone(actual.rhs.lhs)
+        self.assertIsNone(actual.rhs.rhs)
+
+        actual = actual.lhs
+
+        self.assertEqual("A", actual.lhs.value)
+        self.assertEqual(Kind.Identifier, actual.lhs.kind)
+        self.assertIsNone(actual.lhs)
+        self.assertIsNone(actual.rhs)
+        
+    
