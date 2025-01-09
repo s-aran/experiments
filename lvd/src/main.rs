@@ -90,6 +90,6 @@ impl LevenshteinDistance {
         //     });
         // }
 
-        table[a_len + 0][b_len + 0] as u32
+        table[a_len][b_len] as u32
     }
 }
