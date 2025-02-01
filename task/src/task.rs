@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use uuid::Uuid;
 
-pub trait Task<T, U, R, E> {
+trait Task<T, U, R, E> {
     fn uuid(&self) -> Uuid;
     fn execute(&mut self, data: &mut T, arg: &mut U) -> Result<R, E>;
     fn rollback(&mut self, data: &mut T, arg: &mut U) -> Result<R, E>;
@@ -149,7 +149,6 @@ mod tests {
 
         fn rollback(&mut self, data: &mut Target, arg: &mut i32) -> Result<bool, ()> {
             data.val = *arg;
-
             Ok(false)
         }
     }
@@ -177,15 +176,14 @@ mod tests {
         let mut target = Target::new();
         let mut invoker = Invoker::new(&mut target);
 
-        assert_eq!();
-
         invoker.push(UpdateOneTask);
-        let mut truthy = 1;
-        assert!(invoker.execute(truthy).is_ok());
-        assert_eq!(true, targ);
+        let mut one = 1;
+        assert!(invoker.execute(&mut one).is_ok());
+        assert_eq!(1, invoker.data().get());
 
         invoker.push(UpdateTwoTask);
-        assert!(invoker.execute(&0));
-        assert_eq!(false, invoker.data().get());
+        let mut zero = 0;
+        assert!(invoker.execute(&mut zero).is_ok());
+        assert_eq!(0, invoker.data().get());
     }
 }

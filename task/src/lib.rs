@@ -1,6 +1,7 @@
 mod task;
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use uuid::Uuid;
 
@@ -9,7 +10,9 @@ pub struct Task<T, U> {
     before: Option<Uuid>,
     after: Option<Uuid>,
     data: T,
-    do_callback: Box<dyn Fn(&U) -> bool>,
+
+    do_callback: Arc<dyn Fn(&mut Self, &U) -> bool>,
+    do_dry_run: Box<dyn Fn(&Self, &U) -> bool>,
     called: u32,
 }
 
@@ -20,7 +23,8 @@ impl<T, U> Task<T, U> {
             before: None,
             after: None,
             data,
-            do_callback: Box::new(|_| true),
+            do_callback: Arc::new(|_, _| true),
+            do_dry_run: Box::new(|_, _| true),
             called: 0,
         }
     }
@@ -35,15 +39,24 @@ impl<T, U> Task<T, U> {
 
     pub fn call(&mut self, data: U) -> bool {
         self.called += 1;
-        ((self as &Self).do_callback)(&data)
+        let cb = ((self as &mut Self).do_callback).clone();
+        cb(self, &data)
+    }
+
+    pub fn dry_run(&self, data: U) -> bool {
+        ((self as &Self).do_dry_run)(self, &data)
     }
 
     pub fn called(&self) -> u32 {
         self.called
     }
 
-    pub fn set_callback(&mut self, callback: impl Fn(&U) -> bool + 'static) {
-        self.do_callback = Box::new(callback);
+    pub fn set_callback(&mut self, callback: impl Fn(&mut Self, &U) -> bool + 'static) {
+        self.do_callback = Arc::new(callback);
+    }
+
+    pub fn set_dry_run_callback(&mut self, callback: impl Fn(&Self, &U) -> bool + 'static) {
+        self.do_dry_run = Box::new(callback);
     }
 
     pub fn update_before(&mut self, uuid: Option<Uuid>) -> Option<Uuid> {
@@ -164,17 +177,42 @@ mod tests {
         let mut task = Task::new(1);
 
         assert_eq!(0, task.called());
+        assert_eq!(&1, task.data());
 
         assert_eq!(true, task.call(1));
 
         assert_eq!(1, task.called());
 
-        task.set_callback(|arg| {
+        task.set_callback(|this, arg| {
             assert_eq!(2, *arg);
+
+            this.data = 3;
 
             false
         });
 
         assert_eq!(false, task.call(2));
+        assert_eq!(&3, task.data());
+        assert_eq!(1, Arc::strong_count(&task.do_callback));
+    }
+
+    #[test]
+    fn test_dry_run() {
+        let mut task = Task::new(1);
+
+        assert_eq!(0, task.called());
+
+        assert_eq!(true, task.dry_run(1));
+
+        assert_eq!(0, task.called());
+
+        task.set_dry_run_callback(|this, arg| {
+            assert_eq!(2, *arg);
+
+            false
+        });
+
+        assert_eq!(false, task.dry_run(2));
+        assert_eq!(1, Arc::strong_count(&task.do_callback));
     }
 }
