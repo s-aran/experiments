@@ -6,6 +6,65 @@ use windows::Win32::{
 
 use crate::win_cb::{Clipboard, GlobalMemory};
 
+mod win_error {
+    use windows::Win32::Foundation::{GetLastError, WIN32_ERROR};
+    use windows::{core::*, imp::heap_free, Win32::System::Diagnostics::Debug::*};
+
+    fn get_last_error() -> WIN32_ERROR {
+        unsafe { GetLastError() }
+    }
+
+    fn format_message(error: WIN32_ERROR) -> core::result::Result<String, String> {
+        let mut text = Heap(std::ptr::null_mut());
+        let chars = unsafe {
+            let dwflags = FORMAT_MESSAGE_ALLOCATE_BUFFER
+                | FORMAT_MESSAGE_FROM_SYSTEM
+                | FORMAT_MESSAGE_IGNORE_INSERTS;
+            let lpsource = None;
+            let dwmessageid = error.0;
+            let dwlanguageid = 0;
+            let lpbuffer = PWSTR(&mut text.0 as *mut _ as *mut _);
+            let nsize = 0;
+            let arguments = None;
+
+            FormatMessageW(
+                dwflags,
+                lpsource,
+                dwmessageid,
+                dwlanguageid,
+                lpbuffer,
+                nsize,
+                arguments,
+            )
+        };
+
+        if chars > 0 {
+            let parts = unsafe { std::slice::from_raw_parts(text.0, chars as _) };
+            return Ok(String::from_utf16_lossy(parts));
+        }
+
+        Err(format!(
+            "FormatMessage() failed. code={}",
+            get_last_error().0
+        ))
+    }
+
+    pub fn format_last_error_message() -> core::result::Result<String, String> {
+        format_message(get_last_error())
+    }
+
+    #[derive(Debug)]
+    struct Heap(*mut u16);
+
+    impl Drop for Heap {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                unsafe { heap_free(self.0 as _) };
+            }
+        }
+    }
+}
+
 mod win_cb {
     use windows::Win32::{
         Foundation::{GetLastError, ERROR_SUCCESS, FALSE, HANDLE, HGLOBAL, HWND, TRUE},
@@ -21,6 +80,8 @@ mod win_cb {
             Ole::CLIPBOARD_FORMAT,
         },
     };
+
+    use crate::win_error::format_last_error_message;
 
     pub struct Clipboard {
         opened: bool,
@@ -45,7 +106,10 @@ mod win_cb {
             }
 
             if unsafe { OpenClipboard(HWND(0)) } == FALSE {
-                return Err("OpenClipboard() failed.".to_owned());
+                let message = format_last_error_message();
+                return Err(
+                    format!("OpenClipboard() failed. {}", message.unwrap_or_default()).to_owned(),
+                );
             }
 
             self.opened = true;
@@ -58,7 +122,10 @@ mod win_cb {
             }
 
             if unsafe { CloseClipboard() } == FALSE {
-                return Err("CloseClipboard() failed.".to_owned());
+                let message = format_last_error_message();
+                return Err(
+                    format!("CloseClipboard() failed. {}", message.unwrap_or_default()).to_owned(),
+                );
             }
 
             self.opened = false;
@@ -97,7 +164,10 @@ mod win_cb {
             }
 
             if unsafe { EmptyClipboard() } == FALSE {
-                return Err("EmptyClipboard() failed.".to_owned());
+                let message = format_last_error_message();
+                return Err(
+                    format!("EmptyClipboard() failed. {}", message.unwrap_or_default()).to_owned(),
+                );
             }
 
             Ok(())
@@ -116,7 +186,6 @@ mod win_cb {
     }
 
     pub struct GlobalMemory {
-        handle: HANDLE,
         allocated: bool,
         locked: bool,
         h_global: HGLOBAL,
@@ -126,16 +195,11 @@ mod win_cb {
     impl GlobalMemory {
         pub fn new() -> Self {
             Self {
-                handle: HANDLE(0),
                 h_global: HGLOBAL(0),
                 ptr: std::ptr::null_mut(),
                 allocated: false,
                 locked: false,
             }
-        }
-
-        pub fn get_handle(&self) -> HANDLE {
-            self.handle
         }
 
         pub fn get_global(&self) -> HGLOBAL {
@@ -266,7 +330,7 @@ mod win_cb {
     }
 }
 
-pub fn get_text_from_clipboard() -> Result<String, ()> {
+pub fn get_text_from_clipboard() -> Result<String, String> {
     let mut clipboard = Clipboard::new(CF_UNICODETEXT);
 
     let is_clipboard_format_available = clipboard.type_of();
@@ -280,55 +344,43 @@ pub fn get_text_from_clipboard() -> Result<String, ()> {
     );
 
     if is_clipboard_format_available == FALSE {
-        eprintln!("Invalid clipboard type.");
-        return Err(());
+        return Err("Invalid clipboard type.".to_owned());
     }
 
     if clipboard.open().is_err() {
-        eprintln!("Failed to open clipboard.");
-        return Err(());
+        return Err("Failed to open clipboard.".to_owned());
     }
 
     let h_global = match clipboard.get_clipboard_memory() {
         Ok(h) => h,
-        Err(e) => {
-            eprintln!("{}", e);
-            return Err(());
-        }
+        Err(e) => return Err(e),
     };
 
     let mut mem = GlobalMemory::new();
     let data = match mem.lock_by_handle(h_global) {
         Ok(h) => h,
         Err(e) => {
-            eprintln!("{}", e);
-            return Err(());
+            return Err(e);
         }
     };
 
-    let str_slice = unsafe { std::slice::from_raw_parts(data as *mut u16, (mem.size() + 1) / 2) };
+    let str_slice = unsafe { std::slice::from_raw_parts(data as *mut u16, (mem.size()) / 2 - 1) }; // drop \0
     let result = String::from_utf16_lossy(str_slice);
 
     Ok(result)
 }
 
-pub fn set_text_to_clipboard(text: &String) -> Result<(), ()> {
+pub fn set_text_to_clipboard(text: &String) -> Result<(), String> {
     let mut clipboard = Clipboard::new(CF_UNICODETEXT);
 
     match clipboard.open() {
         Ok(()) => {}
-        Err(e) => {
-            eprintln!("{}", e.to_owned());
-            return Err(());
-        }
+        Err(e) => return Err(e),
     }
 
     match clipboard.empty() {
         Ok(()) => {}
-        Err(e) => {
-            eprintln!("{}", e);
-            return Err(());
-        }
+        Err(e) => return Err(e),
     }
 
     let src: Vec<u16> = text.encode_utf16().collect();
@@ -341,10 +393,7 @@ pub fn set_text_to_clipboard(text: &String) -> Result<(), ()> {
     let mut mem = GlobalMemory::new();
     let ptr = match mem.alloc_without_free(global_size) {
         Ok(p) => p,
-        Err(e) => {
-            eprintln!("{}", e);
-            return Err(());
-        }
+        Err(e) => return Err(e),
     };
 
     unsafe { std::ptr::copy(src.as_ptr(), ptr as *mut u16, src.len()) };
@@ -355,18 +404,12 @@ pub fn set_text_to_clipboard(text: &String) -> Result<(), ()> {
 
     match mem.unlock() {
         Ok(()) => {}
-        Err(e) => {
-            eprintln!("{}", e);
-            return Err(());
-        }
+        Err(e) => return Err(e),
     };
 
     match clipboard.set_data(mem.get_global()) {
         Ok(()) => {}
-        Err(e) => {
-            eprintln!("{}", e);
-            return Err(());
-        }
+        Err(e) => return Err(e),
     };
 
     Ok(())
@@ -377,7 +420,8 @@ fn main() {
 
     let t = match get_text_from_clipboard() {
         Ok(t) => t,
-        Err(()) => {
+        Err(e) => {
+            eprintln!("{}", e);
             return ();
         }
     };
@@ -386,25 +430,26 @@ fn main() {
 
     let t2 = match get_text_from_clipboard() {
         Ok(t) => t,
-        Err(()) => {
+        Err(e) => {
+            eprintln!("{}", e);
             return ();
         }
     };
 
     println!("{}", t2);
 
-    // match set_text_to_clipboard(&"ああああaあ".to_string()) {
-    //     Ok(()) => {}
-    //     Err(()) => {
-    //         eprintln!("set clipboard error.");
-    //         return ();
-    //     }
-    // };
+    match set_text_to_clipboard(&"ああああaあ".to_string()) {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("set clipboard error: {}", e);
+            return ();
+        }
+    };
 
     match set_text_to_clipboard(&"🍣🍺".to_string()) {
         Ok(()) => {}
-        Err(()) => {
-            eprintln!("set clipboard error.");
+        Err(e) => {
+            eprintln!("set clipboard error: {}", e);
             return ();
         }
     };
@@ -427,4 +472,80 @@ fn main() {
     // };
 
     // println!("{} - {} = {}", a_dt, b_dt, a_dt - b_dt);
+}
+
+#[cfg(test)]
+mod tests {
+    use windows::Win32::{
+        Foundation::{FALSE, HWND},
+        System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard},
+    };
+
+    use crate::{
+        get_text_from_clipboard, set_text_to_clipboard, win_error::format_last_error_message,
+    };
+
+    pub fn setup() {
+        unsafe {
+            if OpenClipboard(HWND(0)) == FALSE {
+                let message = format_last_error_message();
+                eprintln!("OpenClipboard(): {}", message.unwrap_or_default());
+                assert!(false);
+            }
+
+            if EmptyClipboard() == FALSE {
+                let message = format_last_error_message();
+                eprintln!("EmptyClipboard(): {}", message.unwrap_or_default());
+                assert!(false);
+            }
+
+            if CloseClipboard() == FALSE {
+                let message = format_last_error_message();
+                eprintln!("CloseClipboard(): {}", message.unwrap_or_default());
+                assert!(false);
+            }
+        };
+    }
+
+    #[test]
+    fn test_normal() {
+        setup();
+
+        let expected = "foobar420";
+
+        let result = set_text_to_clipboard(&expected.to_string());
+        if result.is_err() {
+            eprintln!("{}", result.clone().unwrap_err());
+        }
+        assert!(result.is_ok());
+
+        let actual = get_text_from_clipboard();
+        if actual.is_err() {
+            eprintln!("{}", actual.clone().unwrap_err());
+        }
+        assert!(actual.is_ok());
+
+        assert_eq!(actual.unwrap().to_owned(), expected);
+    }
+
+    #[test]
+    fn test_normal_japanese() {
+        setup();
+
+        let expected = "あああああポヲヲソ￥￥￥芸ソソソソ能？";
+
+        let result = set_text_to_clipboard(&expected.to_string());
+        if result.is_err() {
+            eprintln!("{}", result.clone().unwrap_err());
+        }
+        assert!(result.is_ok());
+
+        let actual = get_text_from_clipboard();
+        if actual.is_err() {
+            eprintln!("{}", actual.clone().unwrap_err());
+        }
+        assert!(actual.is_ok());
+
+        assert_eq!(actual.unwrap().to_owned(), expected);
+    }
 }
